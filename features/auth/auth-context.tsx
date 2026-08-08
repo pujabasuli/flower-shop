@@ -9,20 +9,16 @@ import {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { Profile, UserRole } from '@/types';
+import type { Profile } from '@/types';
+
+const ADMIN_EMAIL = 'basulipuja18@gmail.com';
 
 interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (
-    email: string,
-    password: string,
-    fullName: string,
-    phone?: string
-  ) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -41,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       setSession(data.session);
       if (data.session) {
-        loadProfile(data.session.user.id);
+        loadProfile(data.session);
       } else {
         setLoading(false);
       }
@@ -51,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (_event, newSession) => {
         (async () => {
           setSession(newSession);
-          if (newSession?.user) {
-            await loadProfile(newSession.user.id);
+          if (newSession) {
+            await loadProfile(newSession);
           } else {
             setProfile(null);
             setLoading(false);
@@ -65,61 +61,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadProfile(userId: string) {
+  async function loadProfile(session: { user: { id: string; email?: string } }) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', session.user.id)
       .maybeSingle();
 
     if (error) {
       console.error('Error loading profile:', error.message);
     }
+
     if (data) {
       setProfile(data as Profile);
+    } else {
+      // New user via Google OAuth - create profile from auth metadata
+      const meta = session.user;
+      const isAdmin = meta.email?.toLowerCase() === ADMIN_EMAIL;
+      const newProfile = {
+        id: meta.id,
+        full_name: meta.email ?? 'User',
+        phone: null,
+        role: isAdmin ? 'admin' : 'customer',
+      };
+      const { data: created } = await supabase
+        .from('profiles')
+        .upsert(newProfile)
+        .select('*')
+        .maybeSingle();
+      if (created) setProfile(created as Profile);
     }
     setLoading(false);
   }
 
   async function refreshProfile() {
-    if (session?.user) {
-      await loadProfile(session.user.id);
+    if (session) {
+      await loadProfile(session);
     }
   }
 
-  async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
-  }
-
-  async function signUp(
-    email: string,
-    password: string,
-    fullName: string,
-    phone?: string
-  ) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+  async function signInWithGoogle() {
+    const redirectTo =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback`
+        : undefined;
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
       options: {
-        data: { full_name: fullName, phone: phone ?? '' },
+        redirectTo,
       },
     });
-    if (error) return { error: error.message };
-
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        full_name: fullName,
-        phone: phone ?? null,
-        role: 'customer' as UserRole,
-      });
-    }
-
-    return { error: null };
   }
 
   async function signOut() {
@@ -128,13 +121,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   }
 
+  const isAdmin =
+    session?.user?.email?.toLowerCase() === ADMIN_EMAIL ||
+    profile?.role === 'admin';
+
   const value: AuthContextValue = {
     session,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin',
-    signIn,
-    signUp,
+    isAdmin,
+    signInWithGoogle,
     signOut,
     refreshProfile,
   };

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/features/cart/cart-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/lib/supabase';
-import type { PickupSlot, Coupon } from '@/types';
+import type { PickupSlot } from '@/types';
 import { SiteLayout } from '@/components/layout/site-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,11 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ShoppingBag, CreditCard, Calendar, Clock, Tag, CheckCircle2 } from 'lucide-react';
-import { formatPrice, calculateAdvance, calculateRemaining, generateOrderNumber } from '@/lib/format';
-import { ADVANCE_PERCENTAGES, DEFAULT_ADVANCE_PERCENT } from '@/lib/constants';
+import { ShoppingBag, Calendar, Clock } from 'lucide-react';
+import { formatPrice, generateOrderNumber } from '@/lib/format';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -37,10 +35,6 @@ export default function CheckoutPage() {
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [advancePercent, setAdvancePercent] = useState(DEFAULT_ADVANCE_PERCENT);
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
-  const [couponError, setCouponError] = useState('');
 
   useEffect(() => {
     supabase
@@ -54,38 +48,6 @@ export default function CheckoutPage() {
   }, []);
 
   const availableTimes = slots.filter((s) => s.date === pickupDate);
-
-  const discountCents = appliedCoupon
-    ? Math.round((totalCents * appliedCoupon.discount_percent) / 100)
-    : 0;
-  const finalTotal = totalCents - discountCents;
-  const advanceAmount = calculateAdvance(finalTotal, advancePercent);
-  const remainingAmount = calculateRemaining(finalTotal, advanceAmount);
-
-  async function applyCoupon() {
-    setCouponError('');
-    if (!couponCode.trim()) return;
-    const { data, error } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', couponCode.toUpperCase())
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error || !data) {
-      setCouponError('Invalid or expired coupon code');
-      setAppliedCoupon(null);
-      return;
-    }
-    const coupon = data as Coupon;
-    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-      setCouponError('This coupon has expired');
-      setAppliedCoupon(null);
-      return;
-    }
-    setAppliedCoupon(coupon);
-    toast.success(`Coupon applied: ${coupon.discount_percent}% off!`);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -115,18 +77,18 @@ export default function CheckoutPage() {
           user_id: session.user.id,
           status: 'received',
           subtotal_cents: totalCents,
-          discount_cents: discountCents,
-          total_cents: finalTotal,
-          advance_percent: advancePercent,
+          discount_cents: 0,
+          total_cents: totalCents,
+          advance_percent: 0,
           advance_paid_cents: 0,
-          remaining_cents: finalTotal,
+          remaining_cents: totalCents,
           pickup_date: pickupDate,
           pickup_time: pickupTime,
           special_instructions: instructions || null,
           customer_name: name,
           customer_phone: phone,
           customer_email: email,
-          coupon_code: appliedCoupon?.code ?? null,
+          coupon_code: null,
         })
         .select()
         .maybeSingle();
@@ -156,13 +118,6 @@ export default function CheckoutPage() {
       if (itemsError) {
         console.error('Failed to create order items:', itemsError.message);
       }
-
-      await supabase.from('payments').insert({
-        order_id: order.id,
-        amount_cents: advanceAmount,
-        type: 'advance',
-        status: 'pending',
-      });
 
       await supabase.from('notifications').insert({
         user_id: session.user.id,
@@ -299,32 +254,12 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Payment */}
-            <div className="rounded-2xl border border-border/40 bg-card p-6 shadow-soft">
-              <h2 className="mb-4 font-serif text-lg font-semibold">Advance Payment</h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Pay an advance now and the remaining amount at pickup.
+            {/* Payment info */}
+            <div className="rounded-2xl border border-border/40 bg-rose-50/40 p-6">
+              <h2 className="mb-2 font-serif text-lg font-semibold">Payment</h2>
+              <p className="text-sm text-muted-foreground">
+                No advance payment needed. Pay the full amount when you pick up your order at the shop.
               </p>
-              <div className="grid grid-cols-4 gap-2">
-                {ADVANCE_PERCENTAGES.map((pct) => (
-                  <button
-                    key={pct}
-                    type="button"
-                    onClick={() => setAdvancePercent(pct)}
-                    className={cn(
-                      'rounded-xl border-2 py-3 text-center transition-all',
-                      advancePercent === pct
-                        ? 'border-primary bg-rose-50 text-primary'
-                        : 'border-border/40 bg-card hover:border-primary/30'
-                    )}
-                  >
-                    <p className="font-serif text-lg font-bold">{pct}%</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatPrice(calculateAdvance(finalTotal, pct))}
-                    </p>
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -361,66 +296,18 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {/* Coupon */}
-              <div className="mt-4 border-t border-border/40 pt-4">
-                <Label htmlFor="coupon" className="mb-2 flex items-center gap-1 text-sm font-medium">
-                  <Tag className="h-3.5 w-3.5" />
-                  Coupon Code
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="coupon"
-                    placeholder="WELCOME10"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    className="text-sm"
-                  />
-                  <Button type="button" variant="outline" size="sm" onClick={applyCoupon}>
-                    Apply
-                  </Button>
-                </div>
-                {couponError && (
-                  <p className="mt-1 text-xs text-red-500">{couponError}</p>
-                )}
-                {appliedCoupon && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-green-600">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {appliedCoupon.discount_percent}% discount applied
-                  </p>
-                )}
-              </div>
-
               {/* Totals */}
               <div className="mt-4 space-y-2 border-t border-border/40 pt-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatPrice(totalCents)}</span>
-                </div>
-                {discountCents > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Discount</span>
-                    <span>−{formatPrice(discountCents)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between font-serif text-lg font-bold">
                   <span>Total</span>
-                  <span className="text-primary">{formatPrice(finalTotal)}</span>
-                </div>
-                <div className="mt-2 flex justify-between text-sm">
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <CreditCard className="h-3.5 w-3.5" />
-                    Advance ({advancePercent}%)
-                  </span>
-                  <span className="font-semibold text-primary">
-                    {formatPrice(advanceAmount)}
-                  </span>
+                  <span className="text-primary">{formatPrice(totalCents)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="flex items-center gap-1 text-muted-foreground">
                     <Calendar className="h-3.5 w-3.5" />
                     Pay at Pickup
                   </span>
-                  <span className="font-semibold">{formatPrice(remainingAmount)}</span>
+                  <span className="font-semibold">{formatPrice(totalCents)}</span>
                 </div>
               </div>
 
@@ -430,9 +317,7 @@ export default function CheckoutPage() {
                 size="lg"
                 disabled={submitting || !session}
               >
-                {submitting
-                  ? 'Placing order...'
-                  : `Place Order · ${formatPrice(advanceAmount)}`}
+                {submitting ? 'Placing order...' : 'Place Order'}
               </Button>
               {!session && (
                 <p className="mt-2 text-center text-xs text-muted-foreground">
@@ -445,7 +330,7 @@ export default function CheckoutPage() {
               )}
               <p className="mt-2 flex items-center justify-center gap-1 text-center text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                Advance payment is processed securely via Razorpay
+                No advance payment required
               </p>
             </div>
           </div>

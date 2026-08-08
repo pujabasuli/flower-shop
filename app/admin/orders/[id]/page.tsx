@@ -267,20 +267,12 @@ export default function AdminOrderDetail() {
             </h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Advance ({order.advance_percent}%)</span>
-                <span className="font-medium text-primary">
-                  {formatPrice(order.advance_paid_cents)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Remaining</span>
-                <span className="font-medium">
-                  {formatPrice(order.remaining_cents)}
-                </span>
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-medium">{formatPrice(order.total_cents)}</span>
               </div>
               <div className="border-t border-border/40 pt-2">
                 <span className="text-xs text-muted-foreground">
-                  Pay remaining at pickup
+                  Pay full amount at pickup
                 </span>
               </div>
             </div>

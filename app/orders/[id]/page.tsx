@@ -258,18 +258,8 @@ export default function OrderDetailPage({
               </div>
               <div className="border-t border-border/40 pt-2">
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">
-                    Advance ({order.advance_percent}%)
-                  </dt>
-                  <dd className="font-medium text-primary">
-                    {formatPrice(order.advance_paid_cents)}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Pay at Pickup</dt>
-                  <dd className="font-medium">
-                    {formatPrice(order.remaining_cents)}
-                  </dd>
+                  <dt className="text-muted-foreground">Payment</dt>
+                  <dd className="font-medium">Pay at Pickup</dd>
                 </div>
               </div>
             </dl>

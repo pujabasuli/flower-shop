@@ -5,7 +5,7 @@ import { Hero } from '@/components/sections/hero';
 import { FeaturedBouquets } from '@/components/sections/featured-bouquets';
 import { CategoriesSection } from '@/components/sections/categories-section';
 import { AboutSection } from '@/components/sections/about-section';
-import { TestimonialsSection } from '@/components/sections/testimonials-section';
+
 
 export const revalidate = 60;
 
@@ -49,7 +49,6 @@ export default async function Home() {
       <FeaturedBouquets bouquets={bouquets} />
       <CategoriesSection categories={categories} />
       <AboutSection />
-      <TestimonialsSection />
     </SiteLayout>
   );
 }

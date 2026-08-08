@@ -53,10 +53,6 @@ export default function AdminSettings() {
             <User className="mr-2 h-4 w-4" />
             Profile
           </TabsTrigger>
-          <TabsTrigger value="coupons">
-            <Tag className="mr-2 h-4 w-4" />
-            Coupons
-          </TabsTrigger>
           <TabsTrigger value="pickup">
             <Calendar className="mr-2 h-4 w-4" />
             Pickup Slots
@@ -68,9 +64,6 @@ export default function AdminSettings() {
         </TabsContent>
         <TabsContent value="profile">
           <ProfileSettings />
-        </TabsContent>
-        <TabsContent value="coupons">
-          <CouponsTab />
         </TabsContent>
         <TabsContent value="pickup">
           <PickupSlotsTab />
