@@ -259,7 +259,7 @@ export default function CheckoutPage() {
                       <SelectValue placeholder="Select date" />
                     </SelectTrigger>
                     <SelectContent>
-                      {[...new Set(slots.map((s) => s.date))].map((date) => (
+                      {Array.from(new Set(slots.map((s) => s.date))).map((date) => (
                         <SelectItem key={date} value={date}>
                           {new Date(date).toLocaleDateString('en-IN', {
                             weekday: 'short',
