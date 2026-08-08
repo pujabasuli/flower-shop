@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/features/auth/auth-context';
 import { SiteLayout } from '@/components/layout/site-layout';
 import { Button } from '@/components/ui/button';
-import { Flower2, Loader2 } from 'lucide-react';
+import { Flower2, Loader as Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
