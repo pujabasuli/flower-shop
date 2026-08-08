@@ -18,12 +18,7 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (
-    email: string,
-    password: string,
-    fullName: string
-  ) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -68,7 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function loadProfile(session: { user: { id: string; email?: string } }) {
+  async function loadProfile(session: {
+    user: { id: string; email?: string; user_metadata?: { full_name?: string } };
+  }) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -82,11 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       setProfile(data as Profile);
     } else {
-      // New user - create profile from auth metadata
       const isAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL;
+      const fullName =
+        session.user.user_metadata?.full_name ??
+        session.user.email ??
+        'User';
       const newProfile = {
         id: session.user.id,
-        full_name: session.user.email ?? 'User',
+        full_name: fullName,
         phone: null,
         role: isAdmin ? 'admin' : 'customer',
       };
@@ -106,36 +106,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+  async function signInWithGoogle(): Promise<{ error: string | null }> {
+    const redirectTo =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/auth/callback`
+        : undefined;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
     });
     if (error) {
       return { error: error.message };
-    }
-    return { error: null };
-  }
-
-  async function signUp(email: string, password: string, fullName: string) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-      },
-    });
-    if (error) {
-      return { error: error.message };
-    }
-
-    if (data.user) {
-      const isAdmin = email.toLowerCase() === ADMIN_EMAIL;
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        full_name: fullName,
-        role: isAdmin ? 'admin' : 'customer',
-      });
     }
     return { error: null };
   }
@@ -155,8 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     isAdmin,
-    signIn,
-    signUp,
+    signInWithGoogle,
     signOut,
     refreshProfile,
   };
