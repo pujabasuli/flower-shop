@@ -8,7 +8,7 @@ import { SiteLayout } from '@/components/layout/site-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Flower2, Loader2 } from 'lucide-react';
+import { Flower2, Loader as Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignUpPage() {
