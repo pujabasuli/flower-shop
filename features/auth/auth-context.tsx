@@ -18,7 +18,12 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string
+  ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -77,12 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       setProfile(data as Profile);
     } else {
-      // New user via Google OAuth - create profile from auth metadata
-      const meta = session.user;
-      const isAdmin = meta.email?.toLowerCase() === ADMIN_EMAIL;
+      // New user - create profile from auth metadata
+      const isAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL;
       const newProfile = {
-        id: meta.id,
-        full_name: meta.email ?? 'User',
+        id: session.user.id,
+        full_name: session.user.email ?? 'User',
         phone: null,
         role: isAdmin ? 'admin' : 'customer',
       };
@@ -102,17 +106,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signInWithGoogle() {
-    const redirectTo =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback`
-        : undefined;
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
+  async function signIn(email: string, password: string) {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      return { error: error.message };
+    }
+    return { error: null };
+  }
+
+  async function signUp(email: string, password: string, fullName: string) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
       options: {
-        redirectTo,
+        data: { full_name: fullName },
       },
     });
+    if (error) {
+      return { error: error.message };
+    }
+
+    if (data.user) {
+      const isAdmin = email.toLowerCase() === ADMIN_EMAIL;
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        full_name: fullName,
+        role: isAdmin ? 'admin' : 'customer',
+      });
+    }
+    return { error: null };
   }
 
   async function signOut() {
@@ -130,7 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     isAdmin,
-    signInWithGoogle,
+    signIn,
+    signUp,
     signOut,
     refreshProfile,
   };
